@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NET Engineering Technology - ID Card Studio</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Cropper.js for circular profile cropping -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+  
+  <!-- html2canvas for Ultra HD JPG export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'net-blue': '#0c5e9d'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Roboto:wght@400;500;700;900&family=Tinos:wght@400;700&display=swap');
+
+    .card-font-front {
+      font-family: 'Roboto', sans-serif;
+    }
+    
+    .times-back-font {
+      font-family: 'Tinos', 'Times New Roman', Times, serif;
+    }
+
+    /* Standard CR-80 Specification at roughly 3x display scale */
+    .id-card {
+      width: 320px;
+      height: 504px;
+      background: #ffffff;
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+
+    .shrink-text-box {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .address-box {
+      width: 100%;
+      word-break: break-word;
+      white-space: pre-line;
+      line-height: 1.25;
+      overflow: hidden;
+    }
+
+    /* Hide scrollbar for cleaner UI */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900 pb-12">
+
+<!-- Top Navigation Bar -->
+<div class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-net-blue rounded-xl flex items-center justify-center text-white shadow-inner">
+        <i data-lucide="id-card" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-sm font-black tracking-tight text-slate-900 uppercase">NET Engineering</h1>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID Card Studio</p>
+      </div>
+    </div>
+    
+    <!-- Action buttons (PDF and PNG removed, only JPG remains) -->
+    <div class="flex items-center gap-2">
+      <label class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 transition shadow-sm cursor-pointer" title="Upload your green logo photo to remove the green background automatically">
+        <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+        <span>Upload Green Logo</span>
+        <input type="file" id="input-green-logo-top" accept="image/*" class="hidden">
+      </label>
+      
+      <button id="btn-export-jpg" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-net-blue hover:bg-blue-800 text-white text-xs font-bold transition shadow-md" title="Download Print-Ready 300 DPI JPG">
+        <i data-lucide="download" class="w-4 h-4"></i>
+        <span>Save Ultra HD JPG</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+  
+  <!-- Left Configuration Panel -->
+  <div class="lg:col-span-5 space-y-5">
+    
+    <!-- Front Inputs -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+          <i data-lucide="user" class="w-4 h-4 text-net-blue"></i> Front Side Details
+        </h2>
+        <span class="text-[11px] bg-blue-100 text-net-blue font-bold px-2 py-0.5 rounded-full">Auto-Fitting</span>
+      </div>
+
+      <!-- Student Photo Input -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-2">Student Photo (Crop & Frame)</label>
+        <div class="flex items-center gap-3">
+          <div id="avatar-preview-box" class="w-14 h-14 rounded-full border-2 border-slate-300 bg-slate-100 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+            <svg id="default-avatar-icon" class="w-8 h-8 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+            </svg>
+            <img id="form-photo-preview" src="" alt="Preview" class="w-full h-full object-cover hidden">
+          </div>
+          <div class="flex-1 space-y-1.5">
+            <div class="flex items-center gap-2">
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-net-blue hover:bg-blue-800 text-xs font-bold text-white cursor-pointer transition shadow-sm">
+                <i data-lucide="crop" class="w-3.5 h-3.5"></i> Select & Crop
+                <input type="file" id="input-photo-file" accept="image/*" class="hidden">
+              </label>
+              <button type="button" id="btn-recrop" class="hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-700 transition">
+                <i data-lucide="scissors" class="w-3.5 h-3.5 text-net-blue"></i> Re-Crop
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 font-medium">Click to crop and position face inside circle</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Name Input -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Full Name (Auto-scales)</label>
+        <input type="text" id="input-name" value="" placeholder="NAME" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-black uppercase focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Course Input -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Course / Dept</label>
+          <input type="text" id="input-course" value="" placeholder="COURSE" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-black uppercase focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+        </div>
+        <!-- ID Number Input -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">ID Number</label>
+          <input type="text" id="input-id" value="" placeholder="ID NUMBER" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-black focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+        </div>
+      </div>
+    </div>
+
+    <!-- Back Inputs -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+          <i data-lucide="file-badge" class="w-4 h-4 text-net-blue"></i> Back Side Details (Times New Roman)
+        </h2>
+        <span class="text-[11px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">Uniform 15px Layout</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Academic Year Input -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Academic Year</label>
+          <input type="text" id="input-year" value="" placeholder="ACADEMIC YEAR" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+        </div>
+        <!-- Contact Number Input -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-slate-700">Contact No (10 Digits)</label>
+            <span id="phone-counter" class="text-[10px] font-mono text-slate-400 font-bold">0 / 10</span>
+          </div>
+          <input type="text" id="input-contact" maxlength="10" value="" placeholder="PHONE NUMBER" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+        </div>
+      </div>
+
+      <!-- Parent's Name Input -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Parent's Name</label>
+        <input type="text" id="input-parent" value="" placeholder="PARENT'S NAME" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition placeholder-slate-400">
+      </div>
+
+      <!-- 5-Layer Address Textarea -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Address (5 Steps / Lines)</label>
+        <textarea id="input-address" rows="5" class="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-net-blue focus:ring-1 focus:ring-net-blue transition leading-snug placeholder-slate-400" placeholder="ADDRESS"></textarea>
+      </div>
+
+      <div class="pt-2 flex items-center justify-between border-t border-slate-100">
+        <button id="btn-clear" class="text-xs font-bold text-red-600 hover:text-red-700 underline underline-offset-2">Clear All</button>
+        <span class="text-[11px] text-slate-400 font-semibold">Standard CR-80 Specification</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Live Preview Display -->
+  <div class="lg:col-span-7 flex flex-col items-center">
+    <div class="w-full max-w-2xl mb-3 flex items-center justify-between">
+      <h3 class="text-xs uppercase font-extrabold tracking-wider text-slate-600 flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Dual-Sided Live Preview
+      </h3>
+      <span class="text-xs text-slate-400 font-medium">Standard CR-80 (54mm × 85.6mm)</span>
+    </div>
+
+    <!-- Preview Cards Container -->
+    <div id="print-wrapper" class="flex flex-col sm:flex-row items-center justify-center gap-7 py-2">
+      
+      <!-- ======================= FRONT CARD ======================= -->
+      <div id="card-front" class="id-card flex flex-col card-font-front">
+        
+        <!-- Top Blue Header -->
+        <div class="bg-net-blue h-[280px] pt-2 px-4 flex flex-col items-center text-white relative">
+          
+          <!-- Dynamic Logo Container (Front: Pure White on Blue) -->
+          <div id="front-logo-container" class="flex flex-col items-center justify-center w-full max-w-[210px] h-[95px] overflow-hidden">
+            <img id="front-logo-img" src="" alt="NET Logo" class="h-full w-auto max-w-[200px] object-contain hidden filter brightness-0 invert">
+            <!-- Default Vector Logo Render -->
+            <div id="front-logo-fallback" class="w-full flex items-center justify-center">
+              <svg viewBox="0 0 1000 880" class="w-[195px] h-[92px]" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 60 215 L 120 195 L 120 480 L 60 480 Z M 120 270 C 145 205 195 180 255 180 C 315 180 355 220 355 290 L 355 450 L 295 450 L 295 300 C 295 255 270 235 230 235 C 180 235 130 275 120 350 Z" fill="#ffffff" />
+                <rect x="295" y="390" width="115" height="55" fill="#ffffff" />
+                <path d="M 610 440 C 605 370 560 320 495 320 C 420 320 375 375 375 460 C 375 545 425 625 500 625 L 770 625 L 770 370 L 720 370 L 720 320 L 770 320 L 770 255 L 830 235 L 830 320 L 915 320 L 915 370 L 830 370 L 830 535 C 830 570 855 590 915 565 L 915 625 C 840 648 770 610 770 535 L 500 535 C 440 535 435 480 435 440 L 610 440 Z M 435 390 C 438 360 460 345 495 345 C 530 345 550 360 555 390 L 435 390 Z" fill="#ffffff" fill-rule="evenodd" />
+                <text x="820" y="205" font-family="'Montserrat', sans-serif" font-weight="900" font-size="70" fill="#ffffff">TM</text>
+                <text x="65" y="730" font-family="'Montserrat', sans-serif" font-weight="800" font-size="95" fill="#ffffff" letter-spacing="-1">engineering</text>
+                <text x="200" y="835" font-family="'Montserrat', sans-serif" font-weight="800" font-size="95" fill="#ffffff" letter-spacing="-1">technology</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Row of 5 Circular Engineering Icons -->
+          <div class="flex items-center justify-center space-x-2 mt-0.5">
+            <div class="w-6 h-6 rounded-full border border-white/80 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0 2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 1 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+            <div class="w-6 h-6 rounded-full border border-white/80 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 2v6"></path><path d="M18 8v5a6 6 0 0 1-12 0V8z"></path></svg>
+            </div>
+            <div class="w-6 h-6 rounded-full border border-white/80 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+            </div>
+            <div class="w-6 h-6 rounded-full border border-white/80 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+            </div>
+            <div class="w-6 h-6 rounded-full border border-white/80 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"></rect><line x1="2" y1="20" x2="22" y2="20"></line></svg>
+            </div>
+          </div>
+
+          <!-- Overlapping Circular Portrait Photo -->
+          <div class="absolute -bottom-[97px] w-[195px] h-[195px] rounded-full border-[7px] border-[#6b6664] bg-slate-100 overflow-hidden shadow-md z-10 flex items-center justify-center">
+            <svg id="card-photo-placeholder" class="w-24 h-24 text-slate-300" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+            </svg>
+            <img id="card-photo" src="" alt="Student Photo" class="w-full h-full object-cover hidden">
+          </div>
+        </div>
+
+        <!-- Bottom White Body -->
+        <div class="h-[224px] bg-white pt-[105px] pb-3 px-3 flex flex-col items-center justify-center text-center z-0">
+          <div class="shrink-text-box h-7">
+            <span id="card-name" class="text-[24px] font-black text-slate-950 tracking-wide uppercase leading-tight">NAME</span>
+          </div>
+          <div class="shrink-text-box h-6 mt-0.5">
+            <span id="card-course" class="text-[19px] font-black text-slate-950 uppercase tracking-wider leading-tight">COURSE</span>
+          </div>
+          <div class="shrink-text-box h-5 mt-0.5">
+            <span id="card-id" class="text-sm font-extrabold text-slate-900 tracking-wider leading-tight">ID NUMBER</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================= BACK CARD (TIMES NEW ROMAN) ======================= -->
+      <div id="card-back" class="id-card flex flex-col justify-between times-back-font">
+        
+        <div class="px-5 pt-3.5 pb-1 flex-1 flex flex-col justify-between">
+          
+          <!-- Student Personal Details Section (Uniform Times New Roman 15px) -->
+          <div class="text-[15px] space-y-1.5 text-slate-950 leading-snug">
+            
+            <div class="flex items-start">
+              <div class="w-[130px] flex-shrink-0 font-bold whitespace-nowrap">Academic Year :</div>
+              <div id="card-year" class="font-bold pl-1 flex-1 uppercase">ACADEMIC YEAR</div>
+            </div>
+
+            <div class="flex items-start">
+              <div class="w-[130px] flex-shrink-0 font-bold whitespace-nowrap">Contact No :</div>
+              <div id="card-contact" class="font-bold pl-1 flex-1 uppercase">PHONE NUMBER</div>
+            </div>
+
+            <div class="flex items-start">
+              <div class="w-[130px] flex-shrink-0 font-bold whitespace-nowrap">Parent's Name :</div>
+              <div class="flex-1 pl-1 overflow-hidden min-w-0 flex items-center">
+                <span id="card-parent" class="font-bold whitespace-nowrap inline-block uppercase">PARENT'S NAME</span>
+              </div>
+            </div>
+
+            <div class="flex items-start">
+              <div class="w-[130px] flex-shrink-0 font-bold whitespace-nowrap">Address :</div>
+              <div class="flex-1 pl-1">
+                <div id="card-address" class="address-box font-bold text-[15px] uppercase">ADDRESS</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Lower Section: Enlarged Logo + College Accreditation -->
+          <div class="pt-1 flex flex-col justify-end">
+            <!-- Back Watermark NET Logo -->
+            <div id="back-logo-container" class="flex flex-col items-start w-[185px] h-[75px] mb-1 overflow-hidden">
+              <img id="back-logo-img" src="" alt="NET Logo" class="h-full w-auto max-w-[180px] object-contain hidden">
+              <!-- Default Vector Logo -->
+              <div id="back-logo-fallback" class="w-full flex items-center justify-start">
+                <svg viewBox="0 0 1000 880" class="w-[170px] h-[73px]" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 60 215 L 120 195 L 120 480 L 60 480 Z M 120 270 C 145 205 195 180 255 180 C 315 180 355 220 355 290 L 355 450 L 295 450 L 295 300 C 295 255 270 235 230 235 C 180 235 130 275 120 350 Z" fill="#0c5e9d" />
+                  <rect x="295" y="390" width="115" height="55" fill="#0c5e9d" />
+                  <path d="M 610 440 C 605 370 560 320 495 320 C 420 320 375 375 375 460 C 375 545 425 625 500 625 L 770 625 L 770 370 L 720 370 L 720 320 L 770 320 L 770 255 L 830 235 L 830 320 L 915 320 L 915 370 L 830 370 L 830 535 C 830 570 855 590 915 565 L 915 625 C 840 648 770 610 770 535 L 500 535 C 440 535 435 480 435 440 L 610 440 Z M 435 390 C 438 360 460 345 495 345 C 530 345 550 360 555 390 L 435 390 Z" fill="#0c5e9d" fill-rule="evenodd" />
+                  <text x="820" y="205" font-family="'Montserrat', sans-serif" font-weight="900" font-size="70" fill="#0c5e9d">TM</text>
+                  <text x="65" y="730" font-family="'Montserrat', sans-serif" font-weight="800" font-size="95" fill="#0c5e9d" letter-spacing="-1">engineering</text>
+                  <text x="200" y="835" font-family="'Montserrat', sans-serif" font-weight="800" font-size="95" fill="#0c5e9d" letter-spacing="-1">technology</text>
+                </svg>
+              </div>
+            </div>
+
+            <!-- College Details -->
+            <div class="leading-[1.32] text-slate-950 font-semibold space-y-[1px]">
+              <p class="font-extrabold text-slate-950 text-[13.8px] tracking-tight">State Board of Technical Education</p>
+              <p class="font-bold text-[13px] text-slate-950">Government of Kerala</p>
+              <p class="font-semibold text-[12px]">Reg.no. Go (Rt) No. 11/2019/hedn</p>
+              <p class="font-bold text-[12.2px] text-slate-950">Centre Code: 04-01245</p>
+              <p class="text-[12px] font-semibold">Imm Hall, Market Road, Kattakada,</p>
+              <p class="text-[12px] font-semibold">Thiruvananthapuram - 695572</p>
+              <p class="pt-0.5 font-bold text-slate-950 text-[12.8px]">Ph.: 0471-2291837, Mob: +91-9400091837</p>
+              <p class="italic font-bold text-[11.8px] text-slate-900">Netengineeringtechnology@gmail.com</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Web Address Ribbon -->
+        <div class="bg-net-blue text-white py-1.5 px-3 text-center text-xs font-bold italic tracking-wide">
+          www.netengineeringtechnology.com
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Photo Cropping Modal -->
+<div id="crop-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="crop" class="w-5 h-5 text-net-blue"></i>
+        <h3 class="font-bold text-slate-900 text-sm">Crop Student Photo (Circle Frame)</h3>
+      </div>
+      <button id="btn-close-crop" class="text-slate-400 hover:text-slate-600 transition">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <div class="p-4 bg-slate-950 flex items-center justify-center relative overflow-hidden" style="height: 340px;">
+      <img id="cropper-image" src="" alt="To Crop" class="max-h-full max-w-full">
+    </div>
+
+    <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-1.5">
+        <button id="btn-crop-zoom-in" type="button" class="p-2 bg-white rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm transition"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+        <button id="btn-crop-zoom-out" type="button" class="p-2 bg-white rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm transition"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+        <button id="btn-crop-rotate-left" type="button" class="p-2 bg-white rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm transition"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+        <button id="btn-crop-rotate-right" type="button" class="p-2 bg-white rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm transition"><i data-lucide="rotate-cw" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-cancel-crop" type="button" class="px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">Cancel</button>
+        <button id="btn-apply-crop" type="button" class="px-4 py-2 rounded-lg bg-net-blue hover:bg-blue-800 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i> Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  // Elements
+  const inputs = {
+    name: document.getElementById('input-name'),
+    course: document.getElementById('input-course'),
+    id: document.getElementById('input-id'),
+    year: document.getElementById('input-year'),
+    contact: document.getElementById('input-contact'),
+    parent: document.getElementById('input-parent'),
+    address: document.getElementById('input-address')
+  };
+
+  const preview = {
+    name: document.getElementById('card-name'),
+    course: document.getElementById('card-course'),
+    id: document.getElementById('card-id'),
+    year: document.getElementById('card-year'),
+    contact: document.getElementById('card-contact'),
+    parent: document.getElementById('card-parent'),
+    address: document.getElementById('card-address')
+  };
+
+  const phoneCounter = document.getElementById('phone-counter');
+  const btnClear = document.getElementById('btn-clear');
+  const btnExportJpg = document.getElementById('btn-export-jpg');
+
+  // Cropper Elements
+  const inputPhotoFile = document.getElementById('input-photo-file');
+  const btnRecrop = document.getElementById('btn-recrop');
+  const cropModal = document.getElementById('crop-modal');
+  const cropperImage = document.getElementById('cropper-image');
+  const formPhotoPreview = document.getElementById('form-photo-preview');
+  const cardPhoto = document.getElementById('card-photo');
+  const defaultAvatarIcon = document.getElementById('default-avatar-icon');
+  const cardPhotoPlaceholder = document.getElementById('card-photo-placeholder');
+
+  let cropper = null;
+  let rawImageSrc = null;
+
+  // Auto-Scaling Text Function
+  function autoScaleText(element, maxFontSize, minFontSize = 9) {
+    let currentSize = maxFontSize;
+    element.style.fontSize = `${currentSize}px`;
+    const parent = element.parentElement;
+    
+    while (element.scrollWidth > parent.clientWidth && currentSize > minFontSize) {
+      currentSize -= 0.5;
+      element.style.fontSize = `${currentSize}px`;
+    }
+  }
+
+  // Input Listeners
+  inputs.name.addEventListener('input', (e) => {
+    preview.name.textContent = e.target.value.trim() || 'NAME';
+    autoScaleText(preview.name, 24);
+  });
+
+  inputs.course.addEventListener('input', (e) => {
+    preview.course.textContent = e.target.value.trim() || 'COURSE';
+    autoScaleText(preview.course, 19);
+  });
+
+  inputs.id.addEventListener('input', (e) => {
+    preview.id.textContent = e.target.value.trim() || 'ID NUMBER';
+    autoScaleText(preview.id, 14);
+  });
+
+  inputs.year.addEventListener('input', (e) => {
+    preview.year.textContent = e.target.value.trim() || 'ACADEMIC YEAR';
+  });
+
+  inputs.contact.addEventListener('input', (e) => {
+    let val = e.target.value.replace(/\D/g, '').substring(0, 10);
+    e.target.value = val;
+    preview.contact.textContent = val || 'PHONE NUMBER';
+    phoneCounter.textContent = `${val.length} / 10`;
+    phoneCounter.className = val.length === 10 
+      ? "text-[10px] font-mono text-emerald-600 font-bold" 
+      : "text-[10px] font-mono text-slate-400 font-bold";
+  });
+
+  inputs.parent.addEventListener('input', (e) => {
+    preview.parent.textContent = e.target.value.trim() || "PARENT'S NAME";
+    autoScaleText(preview.parent, 15, 10);
+  });
+
+  inputs.address.addEventListener('input', (e) => {
+    preview.address.textContent = e.target.value.trim() || 'ADDRESS';
+  });
+
+  // Cropper Logic
+  inputPhotoFile.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        rawImageSrc = event.target.result;
+        openCropper(rawImageSrc);
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  btnRecrop.addEventListener('click', () => {
+    if (rawImageSrc) openCropper(rawImageSrc);
+  });
+
+  function openCropper(src) {
+    cropperImage.src = src;
+    cropModal.classList.remove('hidden');
+    cropModal.classList.add('flex');
+    if (cropper) cropper.destroy();
+    
+    cropper = new Cropper(cropperImage, {
+      aspectRatio: 1,
+      viewMode: 1,
+      dragMode: 'move',
+      autoCropArea: 0.9,
+      restore: false,
+      guides: false,
+      center: true,
+      highlight: false,
+      cropBoxMovable: true,
+      cropBoxResizable: true,
+      toggleDragModeOnDblclick: false,
+    });
+  }
+
+  function closeCropper() {
+    cropModal.classList.add('hidden');
+    cropModal.classList.remove('flex');
+    if (cropper) {
+      cropper.destroy();
+      cropper = null;
+    }
+  }
+
+  document.getElementById('btn-close-crop').addEventListener('click', closeCropper);
+  document.getElementById('btn-cancel-crop').addEventListener('click', closeCropper);
+  
+  document.getElementById('btn-crop-zoom-in').addEventListener('click', () => cropper && cropper.zoom(0.1));
+  document.getElementById('btn-crop-zoom-out').addEventListener('click', () => cropper && cropper.zoom(-0.1));
+  document.getElementById('btn-crop-rotate-left').addEventListener('click', () => cropper && cropper.rotate(-90));
+  document.getElementById('btn-crop-rotate-right').addEventListener('click', () => cropper && cropper.rotate(90));
+
+  document.getElementById('btn-apply-crop').addEventListener('click', () => {
+    if (cropper) {
+      const canvas = cropper.getCroppedCanvas({ width: 400, height: 400, imageSmoothingQuality: 'high' });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      
+      formPhotoPreview.src = dataUrl;
+      cardPhoto.src = dataUrl;
+      
+      formPhotoPreview.classList.remove('hidden');
+      cardPhoto.classList.remove('hidden');
+      defaultAvatarIcon.classList.add('hidden');
+      cardPhotoPlaceholder.classList.add('hidden');
+      
+      btnRecrop.classList.remove('hidden');
+      
+      closeCropper();
+    }
+  });
+
+  // Green Logo Remover (Chroma Key Process)
+  document.getElementById('input-green-logo-top').addEventListener('change', processGreenLogo);
+
+  function processGreenLogo(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Process chroma key for green background
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i], g = data[i+1], b = data[i+2];
+          // Tolerant green check (higher green than red/blue)
+          if (g > 100 && g > r * 1.2 && g > b * 1.2) {
+             data[i+3] = 0; // Make transparent
+          } else {
+             // Turn everything else pure white
+             data[i] = 255;
+             data[i+1] = 255;
+             data[i+2] = 255;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        
+        const whiteLogoUrl = canvas.toDataURL('image/png');
+
+        // Generate Blue version for back card
+        const blueCanvas = document.createElement('canvas');
+        const blueCtx = blueCanvas.getContext('2d');
+        blueCanvas.width = canvas.width;
+        blueCanvas.height = canvas.height;
+        
+        blueCtx.fillStyle = '#0c5e9d';
+        blueCtx.fillRect(0, 0, blueCanvas.width, blueCanvas.height);
+        blueCtx.globalCompositeOperation = 'destination-in';
+        blueCtx.drawImage(canvas, 0, 0);
+
+        const blueLogoUrl = blueCanvas.toDataURL('image/png');
+
+        // Apply to front
+        const frontImg = document.getElementById('front-logo-img');
+        frontImg.src = whiteLogoUrl;
+        frontImg.classList.remove('hidden');
+        document.getElementById('front-logo-fallback').classList.add('hidden');
+
+        // Apply to back
+        const backImg = document.getElementById('back-logo-img');
+        backImg.src = blueLogoUrl;
+        backImg.classList.remove('hidden');
+        document.getElementById('back-logo-fallback').classList.add('hidden');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Clear All
+  btnClear.addEventListener('click', () => {
+    Object.values(inputs).forEach(input => input.value = '');
+    
+    preview.name.textContent = 'NAME';
+    preview.course.textContent = 'COURSE';
+    preview.id.textContent = 'ID NUMBER';
+    preview.year.textContent = 'ACADEMIC YEAR';
+    preview.contact.textContent = 'PHONE NUMBER';
+    preview.parent.textContent = "PARENT'S NAME";
+    preview.address.textContent = 'ADDRESS';
+    
+    phoneCounter.textContent = '0 / 10';
+    phoneCounter.className = "text-[10px] font-mono text-slate-400 font-bold";
+    
+    autoScaleText(preview.name, 24);
+    autoScaleText(preview.course, 19);
+    autoScaleText(preview.parent, 15);
+
+    inputPhotoFile.value = '';
+    rawImageSrc = null;
+    formPhotoPreview.classList.add('hidden');
+    cardPhoto.classList.add('hidden');
+    defaultAvatarIcon.classList.remove('hidden');
+    cardPhotoPlaceholder.classList.remove('hidden');
+    btnRecrop.classList.add('hidden');
+  });
+
+  // Export Ultra HD JPG (300 DPI equivalent via scale: 4)
+  btnExportJpg.addEventListener('click', async () => {
+    const originalBtnHTML = btnExportJpg.innerHTML;
+    btnExportJpg.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Processing...</span>`;
+    lucide.createIcons();
+
+    try {
+      const fileName = inputs.name.value.trim() || 'student';
+      
+      // Front JPG
+      const frontCanvas = await html2canvas(document.getElementById('card-front'), { scale: 4, useCORS: true });
+      const frontLink = document.createElement('a');
+      frontLink.download = `${fileName}_front.jpg`;
+      frontLink.href = frontCanvas.toDataURL('image/jpeg', 1.0);
+      frontLink.click();
+
+      // Back JPG (slight delay to prevent browser crash)
+      setTimeout(async () => {
+        const backCanvas = await html2canvas(document.getElementById('card-back'), { scale: 4, useCORS: true });
+        const backLink = document.createElement('a');
+        backLink.download = `${fileName}_back.jpg`;
+        backLink.href = backCanvas.toDataURL('image/jpeg', 1.0);
+        backLink.click();
+        
+        btnExportJpg.innerHTML = originalBtnHTML;
+        lucide.createIcons();
+      }, 500);
+
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("An error occurred during export. Please try again.");
+      btnExportJpg.innerHTML = originalBtnHTML;
+      lucide.createIcons();
+    }
+  });
+
+  // Initial Scale
+  window.addEventListener('load', () => {
+    autoScaleText(preview.name, 24);
+    autoScaleText(preview.course, 19);
+    autoScaleText(preview.parent, 15);
+  });
+</script>
+
+</body>
+</html>
